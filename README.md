@@ -52,10 +52,10 @@ npm start
 - [ ] Publish on Google Play & App Store
  
 
-## 👨‍💻 Auteur
+## 👨‍💻 Author
 
 Developed by Imane LAABAB
 
-## 📄 Licence
+## 📄 License
 
 MIT

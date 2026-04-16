@@ -1,0 +1,37 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/*.db
+backend/.pytest_cache/
+
+# Node / React Native
+mobile-app/node_modules/
+mobile-app/.expo/
+mobile-app/.expo-shared/
+mobile-app/dist/
+mobile-app/npm-debug.*
+mobile-app/*.log
+mobile-app/*.jks
+mobile-app/*.p8
+mobile-app/*.p12
+mobile-app/*.key
+mobile-app/*.mobileprovision
+mobile-app/*.orig.*
+mobile-app/web-build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local

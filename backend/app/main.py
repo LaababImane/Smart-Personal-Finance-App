@@ -4,12 +4,30 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timedelta
 import random
+from pydantic import BaseModel
 
 from . import models
 from .database import engine, get_db
+from .ml_model import categorizer
+
 
 # Création des tables dans la base de données
 models.Base.metadata.create_all(bind=engine)
+
+# Modèles Pydantic pour les requêtes
+class TransactionCreate(BaseModel):
+    amount: float
+    description: str
+
+class TransactionResponse(BaseModel):
+    id: int
+    amount: float
+    description: str
+    category: str
+    date: str
+    
+    class Config:
+        from_attributes = True
 
 app = FastAPI(title="Smart Finance API")
 
@@ -24,23 +42,25 @@ app.add_middleware(
 
 # Modèle ML simple pour catégoriser les transactions
 def categorize_transaction(description: str) -> str:
-    """Catégorise une transaction basée sur des mots-clés"""
-    description_lower = description.lower()
-    
-    if any(word in description_lower for word in ['restaurant', 'café', 'mcdo', 'pizza', 'burger']):
-        return 'Restaurant'
-    elif any(word in description_lower for word in ['carrefour', 'marjane', 'supermarché', 'épicerie']):
-        return 'Courses'
-    elif any(word in description_lower for word in ['loyer', 'appartement', 'eau', 'électricité']):
-        return 'Logement'
-    elif any(word in description_lower for word in ['essence', 'taxi', 'bus', 'train', 'parking']):
-        return 'Transport'
-    elif any(word in description_lower for word in ['netflix', 'spotify', 'abonnement', 'internet']):
-        return 'Abonnements'
-    elif any(word in description_lower for word in ['médecin', 'pharmacie', 'clinique', 'docteur']):
-        return 'Santé'
-    else:
-        return 'Autres'
+    """Catégorise une transaction avec ML"""
+    try:
+        category = categorizer.predict(description)
+        return category
+    except Exception as e:
+        print(f"Erreur ML: {e}")
+        # Fallback sur règles simples
+        description_lower = description.lower()
+        
+        if any(word in description_lower for word in ['restaurant', 'café', 'mcdo', 'pizza', 'burger']):
+            return 'Restaurant'
+        elif any(word in description_lower for word in ['carrefour', 'marjane', 'supermarché', 'épicerie']):
+            return 'Courses'
+        elif any(word in description_lower for word in ['loyer', 'appartement', 'eau', 'électricité']):
+            return 'Logement'
+        elif any(word in description_lower for word in ['essence', 'taxi', 'bus', 'train', 'parking']):
+            return 'Transport'
+        else:
+            return 'Autres'
 
 # Routes API
 
@@ -49,26 +69,26 @@ def read_root():
     return {"message": "Smart Finance API - Backend opérationnel!"}
 
 @app.post("/transactions/")
-def create_transaction(amount: float, description: str, db: Session = Depends(get_db)):
+def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
     """Créer une nouvelle transaction"""
-    category = categorize_transaction(description)
+    category = categorize_transaction(transaction.description)
     
-    transaction = models.Transaction(
-        amount=amount,
-        description=description,
+    new_transaction = models.Transaction(
+        amount=transaction.amount,
+        description=transaction.description,
         category=category
     )
     
-    db.add(transaction)
+    db.add(new_transaction)
     db.commit()
-    db.refresh(transaction)
+    db.refresh(new_transaction)
     
     return {
-        "id": transaction.id,
-        "amount": transaction.amount,
-        "description": transaction.description,
+        "id": new_transaction.id,
+        "amount": new_transaction.amount,
+        "description": new_transaction.description,
         "category": category,
-        "date": transaction.date
+        "date": new_transaction.date.isoformat()
     }
 
 @app.get("/transactions/")
@@ -202,3 +222,24 @@ def seed_test_data(db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"{len(test_transactions)} transactions de test créées!"}
+
+
+
+@app.post("/ml/train")
+def train_ml_model():
+    """Entraîner le modèle ML de catégorisation"""
+    try:
+        categorizer.train()
+        return {"message": "Modèle ML entraîné avec succès!"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/ml/predict")
+def predict_category(description: str):
+    """Tester la prédiction ML"""
+    category, confidence = categorizer.predict_with_confidence(description)
+    return {
+        "description": description,
+        "predicted_category": category,
+        "confidence": round(confidence * 100, 2)
+    }
